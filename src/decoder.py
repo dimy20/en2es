@@ -3,11 +3,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class MaxOut(nn.Module):
-	def __init__(self):
-		super().__init__()
-	def forward(self, X):
-		B, _ = X.shape
-		return X.view(B, -1, 2).max(dim=-1).values
+    """Maxout activation: splits last dim into pairs and takes the element-wise max.
+    
+    Input:  (B, D) where D must be even
+    Output: (B, D/2)
+    """
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, X):
+		# [1, 2*h] => s = [s1, s2, s3, s4, ..... ] #
+		# [[s1, s2],
+		# [s3, s4]
+        B, _ = X.shape
+        return X.view(B, -1, 2).max(dim=-1).values
 
 class Decoder(nn.Module):
 	def __init__(self, hidden_size, emb_dim, vocab_size):
@@ -70,15 +79,8 @@ class Decoder(nn.Module):
 			#update
 			h = z*h + (1-z)*candidate
 
-			# [1, 2*h] => s = [s1, s2, s3, s4, ..... ] #
-			# [[s1, s2],
-			# [s3, s4]
-
-			# MAX OUT (Might be a good idea to turn this into a module)
-			#s_ = h @ self.Oh + Yemb[t-1] @ self.Oy + c @ self.Oc
-			#B, H
 			s_ = self.Oh(h) + self.Oy(Yemb[:, t-1]) + self.Oc(c)
-			s = s_.view(B, -1, 2).max(dim=-1).values
+			s = self.max_out(s_)
 
 			logits = self.G(s)
 			y_logits[:, t-1] = logits
@@ -111,10 +113,7 @@ class Decoder(nn.Module):
 
 			# output
 			s_ = self.Oh(h) + self.Oy(y_prev) + self.Oc(c)
-			s = self.max_out(s)
-
-			#s = s_.view(1, -1, 2).max(dim=-1).values
-
+			s = self.max_out(s_)
 			y_logits = self.G(s)
 
 			#sample
