@@ -73,6 +73,18 @@ class Tokenizer:
 		return tokenizer
 
 	@property
+	def sos_idx(self):
+		return self.token_to_idx[self.sos_token]
+
+	@property
+	def eos_idx(self):
+		return self.token_to_idx[self.eos_token]
+
+	@property
+	def pad_idx(self):
+		return self.token_to_idx[self.pad_token]
+
+	@property
 	def fname(self):
 		return Path(SAVE_PATH) / f"tokens_{self.target}.json"
 
