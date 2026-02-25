@@ -2,6 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class MaxOut(nn.Module):
+	def __init__(self):
+		super().__init__()
+	def forward(self, X):
+		B, _ = X.shape
+		return X.view(B, -1, 2).max(dim=-1).values
+
 class Decoder(nn.Module):
 	def __init__(self, hidden_size, emb_dim, vocab_size):
 		super().__init__()
@@ -36,6 +43,7 @@ class Decoder(nn.Module):
 		self.Oh = nn.Linear(hidden_size, 2 * d, bias=False)
 		self.Oy = nn.Linear(emb_dim, 2 * d, bias=False)
 		self.Oc = nn.Linear(hidden_size, 2 * d, bias=False)
+		self.max_out = MaxOut()
 
 		self.G = nn.Linear(d, vocab_size, bias=False)
 		
@@ -68,6 +76,7 @@ class Decoder(nn.Module):
 
 			# MAX OUT (Might be a good idea to turn this into a module)
 			#s_ = h @ self.Oh + Yemb[t-1] @ self.Oy + c @ self.Oc
+			#B, H
 			s_ = self.Oh(h) + self.Oy(Yemb[:, t-1]) + self.Oc(c)
 			s = s_.view(B, -1, 2).max(dim=-1).values
 
@@ -102,7 +111,10 @@ class Decoder(nn.Module):
 
 			# output
 			s_ = self.Oh(h) + self.Oy(y_prev) + self.Oc(c)
-			s = s_.view(1, -1, 2).max(dim=-1).values
+			s = self.max_out(s)
+
+			#s = s_.view(1, -1, 2).max(dim=-1).values
+
 			y_logits = self.G(s)
 
 			#sample
