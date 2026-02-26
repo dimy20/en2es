@@ -125,3 +125,41 @@ class Decoder(nn.Module):
 
 		return torch.tensor(target_tokens)
 
+	def batch_generate(self, C: torch.Tensor, sos_idx: int, eos_idx: int, max_output_tokens : int = 16):
+		B, D = C.shape
+		device = C.device
+		sos_idx = torch.tensor(sos_idx, device=device)
+		y_prev = self.embeddings(sos_idx).repeat(B, 1)
+		alive = torch.ones(B, dtype=torch.bool, device=device)
+		out = []
+
+		h = F.tanh(self.V(C))
+
+		for _ in range(max_output_tokens):
+			z = F.sigmoid(self.Wz(y_prev) + self.Uz(h) + self.Cz(C))
+			r = F.sigmoid(self.Wr(y_prev) + self.Ur(h) + self.Cr(C))
+			candidate = F.tanh(self.W(y_prev) + r * (self.U(h) + self.C(C)))
+			h = z*h + (1-z)*candidate
+
+			# output
+			s_ = self.Oh(h) + self.Oy(y_prev) + self.Oc(C)
+			s = self.max_out(s_)
+			y_logits = self.G(s)
+
+			probs = F.softmax(y_logits, dim=-1)
+
+			y_next_indices = torch.argmax(probs, dim=-1)
+			out.append(y_next_indices) # right shaped is adjusted before return, so we get [B, y_indices]
+
+			# we need to filter out "dead" sequences, which just a sequence that has reaced eos (end of sequence)
+			# which is, the model decided the sequence ended, however we need to pad to be able to do this in a bach.
+			y_next_indices = torch.where(alive, y_next_indices, torch.full_like(y_next_indices, eos_idx))
+
+			#updated alive mask to remove dead sequences from this iteration.
+			alive = alive & (y_next_indices != eos_idx)
+			y_prev = self.embeddings(y_next_indices)
+
+			if not alive.any():
+				break
+
+		return torch.stack(out, dim=-1) # [B, y_indices]
