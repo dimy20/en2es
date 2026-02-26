@@ -19,11 +19,12 @@ class MaxOut(nn.Module):
         return X.view(B, -1, 2).max(dim=-1).values
 
 class Decoder(nn.Module):
-	def __init__(self, hidden_size, emb_dim, vocab_size):
+	def __init__(self, hidden_size, emb_dim, vocab_size, max_out_dim):
 		super().__init__()
 
 		self.hidden_size = hidden_size
 		self.vocab_size = vocab_size
+		self.max_out_dim = max_out_dim
 
 		self.embeddings = nn.Embedding(vocab_size, emb_dim)
 		self.V = nn.Linear(hidden_size, hidden_size, bias=False)
@@ -47,14 +48,14 @@ class Decoder(nn.Module):
 		# Im using 2*vocab_size as the target size here since we are using maxout for output
 		# keeping it close to what the paper does oringinally.
 		# Might change it to something simpler.
-		d = 64 # move this to config
+		#d = 64 # move this to config
 
-		self.Oh = nn.Linear(hidden_size, 2 * d, bias=False)
-		self.Oy = nn.Linear(emb_dim, 2 * d, bias=False)
-		self.Oc = nn.Linear(hidden_size, 2 * d, bias=False)
+		self.Oh = nn.Linear(hidden_size, 2 * self.max_out_dim, bias=False)
+		self.Oy = nn.Linear(emb_dim, 2 * self.max_out_dim, bias=False)
+		self.Oc = nn.Linear(hidden_size, 2 * self.max_out_dim, bias=False)
 		self.max_out = MaxOut()
 
-		self.G = nn.Linear(d, vocab_size, bias=False)
+		self.G = nn.Linear(self.max_out_dim, vocab_size, bias=False)
 		
 
 	def forward(self, c: torch.Tensor, Y: torch.tensor):
