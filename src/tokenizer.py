@@ -119,4 +119,5 @@ class Tokenizer:
 			out.append(self.unk_token if idx == UNK_IDX else self.idx_to_token[idx])
 		return " ".join(out)
 
-	
+	def decode_batch(self, indices: torch.Tensor) -> list[str]:
+		return [self.decode(seq.tolist()) for seq in indices]

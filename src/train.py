@@ -2,46 +2,7 @@ import torch
 import torch.nn.functional as F
 from src.model import Seq2Seq
 from torch.utils.data import DataLoader
-
-# Accuracy on one batch on data.
-# Accuracy is not the best metric for machine translation, im going to include it anyways
-# need to add BLEU score.
-def accuracy(pad_idx: int, Y: torch.Tensor, y_log_probs: torch.Tensor):
-	# i dont want to include pad indices in the accuracy
-	indices = Y[:, 1:] != pad_idx
-	yreal = Y[:, 1:][indices]  # real indices
-	ypredicted = torch.argmax(y_log_probs[:, :, :], dim=-1)[indices] # predicted indices
-	return torch.mean((yreal == ypredicted).float(), dtype=torch.float)
-
-def eval(model: Seq2Seq, 
-		 test_loader: DataLoader,
-		 pad_idx: int,
-		 device: str
-		 ):
-	test_loss = 0.0
-	test_acc = 0.0
-	model.eval()
-	with torch.no_grad():
-		test_loss = 0
-
-		for Xt, Yt in test_loader:
-			Xt = Xt.to(device)
-			Yt = Yt.to(device)
-
-			# forward pass on test batch
-			y_logits_t = model.forward(Xt, Yt)
-			y_log_probs_t = F.log_softmax(y_logits_t, dim=-1)
-			B, T, Y_VOCAB = y_log_probs_t.shape
-			Lt = F.nll_loss(y_log_probs_t.view(B*T, Y_VOCAB), 
-						Yt[:, 1:].contiguous().view(-1),
-						ignore_index=pad_idx)
-
-			test_loss += Lt.item()
-			test_acc += accuracy(pad_idx, Y=Yt, y_log_probs=y_log_probs_t)
-
-	model.train()
-
-	return test_loss / len(test_loader), test_acc / len(test_loader)
+from src.eval import accuracy, ModelEvaluator
 
 class Trainer:
 	def __init__(self, 
@@ -50,7 +11,8 @@ class Trainer:
 				 test_loader: DataLoader,
 				 device: str,
 				 pad_idx: int,
-				 log_step: int = 100
+				 eval: ModelEvaluator,
+				 log_step: int = 100,
 				 ):
 
 		self.model = model
@@ -59,6 +21,8 @@ class Trainer:
 		self.device = device
 		self.pad_idx = pad_idx
 		self.log_step = log_step
+		self.eval = eval
+		#
 
 		# train history
 		self.train_losses = []
@@ -67,6 +31,7 @@ class Trainer:
 		# test_history
 		self.test_losses = []
 		self.test_accs = []
+		self.bleu_scores = []
 
 	def train(self, lr: float, epochs: int = 1):
 		self.model.train()
@@ -117,12 +82,14 @@ class Trainer:
 					train_acc = 0 
 
 					# run loss and acc on test set
-					test_loss, test_acc = eval(self.model, self.test_loader, self.pad_idx, self.device)
+					test_loss, test_acc, bleu_score = self.eval.eval_test()
+					#test_loss, test_acc = eval_test_set(self.model, self.test_loader, self.pad_idx, self.device)
 
 					self.test_losses.append(test_loss)
 					self.test_accs.append(test_acc)
+					self.bleu_scores.append(bleu_score)
 
 		self.train_accs = torch.stack(self.train_accs)
 		self.test_accs = torch.stack(self.test_accs)
 
-		return self.train_losses, self.train_accs, self.test_losses, self.test_accs
+		return self.train_losses, self.train_accs, self.test_losses, self.test_accs, self.bleu_scores
