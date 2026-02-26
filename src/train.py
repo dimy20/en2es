@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from src.model import Seq2Seq
 from torch.utils.data import DataLoader
 from src.eval import accuracy, ModelEvaluator
+from tqdm import tqdm
 
 class Trainer:
 	def __init__(self, 
@@ -37,10 +38,12 @@ class Trainer:
 		self.model.train()
 		optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=0)
 
-		for _ in range(epochs):
+		epoch_bar = tqdm(range(epochs), desc="Epochs")
+		for _ in epoch_bar:
 			loss = 0.0
 			train_acc = 0.0
-			for batch_idx, (X, Y) in enumerate(self.train_loader):
+			batch_bar = tqdm(enumerate(self.train_loader), total=len(self.train_loader), desc="Batches", leave=False)
+			for batch_idx, (X, Y) in batch_bar:
 				X = X.to(self.device)
 				Y = Y.to(self.device)
 
@@ -72,11 +75,16 @@ class Trainer:
 
 				#update params
 				optimizer.step()
+
+				batch_bar.set_postfix(loss=f"{L.item():.4f}")
 				
 				#record loss
 				if (batch_idx + 1) % self.log_step == 0:
-					self.train_losses.append(loss / self.log_step)
-					self.train_accs.append(train_acc / self.log_step)
+					avg_loss = loss / self.log_step
+					avg_acc = train_acc / self.log_step
+
+					self.train_losses.append(avg_loss)
+					self.train_accs.append(avg_acc)
 
 					loss = 0
 					train_acc = 0 
@@ -88,6 +96,14 @@ class Trainer:
 					self.test_losses.append(test_loss)
 					self.test_accs.append(test_acc)
 					self.bleu_scores.append(bleu_score)
+
+					epoch_bar.set_postfix(
+						train_loss=f"{avg_loss:.4f}",
+						train_acc=f"{avg_acc:.4f}",
+						test_loss=f"{test_loss:.4f}",
+						test_acc=f"{test_acc:.4f}",
+						bleu=f"{bleu_score:.2f}"
+					)
 
 		self.train_accs = torch.stack(self.train_accs)
 		self.test_accs = torch.stack(self.test_accs)
