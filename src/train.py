@@ -36,7 +36,7 @@ class Trainer:
 
 	def train(self, lr: float, epochs: int = 1):
 		self.model.train()
-		optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=0)
+		optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=1e-4)
 
 		epoch_bar = tqdm(range(epochs), desc="Epochs")
 		for _ in epoch_bar:

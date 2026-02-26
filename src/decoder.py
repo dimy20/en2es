@@ -56,6 +56,8 @@ class Decoder(nn.Module):
 		self.max_out = MaxOut()
 
 		self.G = nn.Linear(self.max_out_dim, vocab_size, bias=False)
+
+		self.dropout = nn.Dropout(p=0.3)
 		
 
 	def forward(self, c: torch.Tensor, Y: torch.tensor):
@@ -63,6 +65,7 @@ class Decoder(nn.Module):
 		h = F.tanh(self.V(c))
 
 		Yemb = self.embeddings(Y)
+		Yemb = self.dropout(Yemb)
 		B, T, _ = Yemb.shape
 
 		y_logits = torch.zeros(B, T-1, self.vocab_size, device=device)
@@ -79,6 +82,7 @@ class Decoder(nn.Module):
 
 			#update
 			h = z*h + (1-z)*candidate
+			h = self.dropout(h)
 
 			s_ = self.Oh(h) + self.Oy(Yemb[:, t-1]) + self.Oc(c)
 			s = self.max_out(s_)
@@ -90,9 +94,7 @@ class Decoder(nn.Module):
 
 	def generate(self, c: torch.Tensor, sos_idx: int, eos_idx: int, max_output_tokens : int = 16):
 		device = c.device
-		#sos_idx = torch.tensor(es_tokenizer.token_to_idx[es_tokenizer.sos_token]).to(device)
-		#eos_idx = es_tokenizer.token_to_idx[es_tokenizer.eos_token]
-		sos_idx = torch.tensor(sos_idx)
+		sos_idx = torch.tensor(sos_idx, device=device)
 
 		## NOTE: Preserve Batching
 		## This is very subtle, and could cause wrong calculation down the stream

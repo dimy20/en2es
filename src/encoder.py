@@ -45,10 +45,17 @@ class Encoder(nn.Module):
 
 		self.V = nn.Linear(hidden_size, hidden_size)
 
+		self.dropout = nn.Dropout(p=0.3)
+
 	def forward(self, X: torch.Tensor):
+		assert X.dim() in (1, 2), f"Expected 1D or 2D input, got {X.dim()}D"
+		if X.dim() == 1:
+			X = X.unsqueeze(0)
 		lengths = torch.sum((X != self.pad_idx).int(), dim=-1, keepdim=True)
 
 		Xemb = self.embeddings(X)
+		Xemb = self.dropout(Xemb)
+
 		B, T, _ = Xemb.shape
 		h = torch.zeros((B, self.hidden_size), device=X.device)
 			
@@ -60,5 +67,6 @@ class Encoder(nn.Module):
 			h = z*h + (1-z)*update
 			h = self.padding_mask(lengths, t, h, prev_h) # mask inactive sequences
 
+		h = self.dropout(h)
 		C = F.tanh(self.V(h))
 		return C

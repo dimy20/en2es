@@ -17,3 +17,13 @@ class Seq2Seq(nn.Module):
 	def generate(self, X: torch.Tensor, debug=False):
 		c = self.encoder(X)
 		return self.decoder.generate(c) if not debug else self.decoder.generate(torch.zeros_like(c))
+
+	@staticmethod
+	def load(fname: str) -> 'Seq2Seq':
+		device = "cuda" if torch.cuda.is_available() else "cpu"
+		data = torch.load(fname, weights_only=False)
+		config = data.get("config")
+		state_dict = data.get("model_state_dict")
+		model = Seq2Seq(config)
+		model.load_state_dict(state_dict)
+		return model.to(device)
