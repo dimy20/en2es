@@ -21,7 +21,8 @@ class ModelTest(unittest.TestCase):
 		dec = Decoder(
 			hidden_size=HIDDEN_SIZE,
 			emb_dim=EMB_DIM,
-			vocab_size=VOCAB_SIZE
+			vocab_size=VOCAB_SIZE,
+			max_out_dim=32
 		)
 
 		Y = torch.randint(1024, size=(8, 16))

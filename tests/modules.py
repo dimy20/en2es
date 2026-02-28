@@ -36,7 +36,7 @@ class TestMaskPadding(unittest.TestCase):
 		# ununsed in this test, but required by BatchProcess
 		Y = gen_different_length_sequences(max_length=20, batch_size=10, vocab_size=512)
 		
-		batch_process = BatchProcess(pad_idx_src=0, pad_idx_dst=0)
+		batch_process = BatchProcess(pad_idx=0)
 		
 		padded_X, _ = batch_process(list(zip(X, Y)))
 		B, T = padded_X.shape

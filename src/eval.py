@@ -2,13 +2,17 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from src.model import Seq2Seq
-from src.tokenizer import Tokenizer
-import pandas as pd
+#from src.tokenizer import Tokenizer
+from src.tokenizer import BPETokenizer
 import sacrebleu
+from datasets import load_dataset, DatasetDict
 
-def bleu_references(df: pd.DataFrame, en_tokenizer: Tokenizer):
-	en = list(df["english"])
-	es = list(df["spanish"])
+def bleu_references(test_split: DatasetDict, tokenizer: BPETokenizer):
+	en, es = [], []
+	for row in test_split:
+		t = row.get("translation")
+		en.append(t.get("en"))
+		es.append(t.get("es"))
 
 	# every source sentence in english has a list of rerefence translations in spanish:
 	# each sentence can have more that one valid translation, this is used to compute the bleu metric
@@ -17,7 +21,7 @@ def bleu_references(df: pd.DataFrame, en_tokenizer: Tokenizer):
 	groups = {} 
 	for k, v in zip(en, es):
 		# must match how the tokenizer decodes, otherwise we will get key errors.
-		k = " ".join(en_tokenizer.tokenize(k))
+		k = " ".join(tokenizer.tokenize(k))
 		groups[k] = groups.get(k, []) + [v]
 
 	return groups
@@ -37,19 +41,14 @@ class ModelEvaluator:
 			  	model: Seq2Seq,
 				device: str,
 				test_loader: DataLoader,
-				df: pd.DataFrame,
-				en_tokenizer: Tokenizer,
-				es_tokenizer: Tokenizer
+				tokenizer: BPETokenizer,
 			  ):
 		self.model = model
 		self.device = device
 		self.test_loader = test_loader
-		self.df = df
-		self.en_tokenizer = en_tokenizer
-		self.es_tokenizer = es_tokenizer
-
-		#
-		self.references = bleu_references(self.df, en_tokenizer)
+		self.tokenizer = tokenizer
+		test_split = load_dataset("Helsinki-NLP/opus-100", "en-es", split="test")
+		self.references = bleu_references(test_split, tokenizer)
 
 	def eval_test(self):
 		test_loss = 0.0
@@ -69,10 +68,10 @@ class ModelEvaluator:
 				B, T, Y_VOCAB = y_log_probs_t.shape
 				Lt = F.nll_loss(y_log_probs_t.view(B*T, Y_VOCAB), 
 							Yt[:, 1:].contiguous().view(-1),
-							ignore_index=self.es_tokenizer.pad_idx)
+							ignore_index=self.tokenizer.pad_idx)
 
 				test_loss += Lt.item()
-				test_acc += accuracy(self.es_tokenizer.pad_idx, Y=Yt, y_log_probs=y_log_probs_t)
+				test_acc += accuracy(self.tokenizer.pad_idx, Y=Yt, y_log_probs=y_log_probs_t)
 				avg_bleu_score += self.bleu_eval_batch(Xt, self.references)
 
 		self.model.train()
@@ -85,14 +84,14 @@ class ModelEvaluator:
 						references: dict) -> float:
 		assert not self.model.training, "Model must be in eval mode during bleu_eval_batch"
 		with torch.no_grad():
-			decoded_X = self.en_tokenizer.decode_batch(X)
+			decoded_X = self.tokenizer.decode_batch(X)
 			c = self.model.encoder(X)
 			y = self.model.decoder.batch_generate(c, 
-										 		  sos_idx=self.es_tokenizer.sos_idx,
-												  eos_idx=self.es_tokenizer.eos_idx)
+										 		  sos_idx=self.tokenizer.sos_idx,
+												  eos_idx=self.tokenizer.eos_idx)
 
 			refs_list = [references[x] for x in decoded_X]
-			candidates = self.es_tokenizer.decode_batch(y)
+			candidates = self.tokenizer.decode_batch(y)
 
 			score = sacrebleu.corpus_bleu(candidates, refs_list).score
 			return score

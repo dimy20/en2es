@@ -1,24 +1,22 @@
-from torch.utils.data import DataLoader
 import torch
 import torch.nn.functional as F
 
-from src.tokenizer import Tokenizer
+#from src.tokenizer import Tokenizer
+from src.tokenizer import BPETokenizer
 from src.model import Seq2Seq
 
 # PERFORM A SINGLE FORWARD TEST PASS
 def single_forward_pass(model: Seq2Seq,
-						src_tokenizer: Tokenizer, 
-						target_tokenizer: Tokenizer,
+				 		tokenizer: BPETokenizer,
 						X: torch.Tensor,
 						Y: torch.Tensor):
 						
 
-	pad_idx = src_tokenizer.token_to_idx[src_tokenizer.pad_token]
-	
+	pad_idx = tokenizer.pad_idx
 
 	print(f"SRC = {X[:1]}")
 	print(f"TARGET = {Y[:1]}")
-	print(f"Expected initial LOSS -> {-torch.log(torch.tensor(1/target_tokenizer.vocab_size)):.4f}")
+	print(f"Expected initial LOSS -> {-torch.log(torch.tensor(1/tokenizer.vocab_size)):.4f}")
 
 	with torch.no_grad():
 		model.eval()
@@ -75,16 +73,15 @@ def overfit_one_batch(model: Seq2Seq, X: torch.Tensor, Y: torch.Tensor, pad_idx:
 def teacher_forcing_vs_auto_regressive_test(model: Seq2Seq,
 											X: torch.Tensor,
 											Y: torch.Tensor,
-											en_tokenizer: Tokenizer,
-											es_tokenizer: Tokenizer):
+											tokenizer: BPETokenizer):
 	with torch.no_grad():
 		model.eval()
 		x = X[1:2]
 		y = Y[1:2]
 		print(x.shape, y.shape)
 
-		print("Source:", en_tokenizer.decode(x[0].cpu().tolist()))
-		print("Target:", es_tokenizer.decode(y[0].cpu().tolist()))
+		print("Source:", tokenizer.decode(x[0].cpu().tolist()))
+		print("Target:", tokenizer.decode(y[0].cpu().tolist()))
 
 		#encoded src
 		c = model.encoder(x)
@@ -92,23 +89,23 @@ def teacher_forcing_vs_auto_regressive_test(model: Seq2Seq,
 		# teacher forcing forward
 		logits = model.decoder(c, y)
 		print("\nTEACHER FORCING SAMPLE:\n")
-		s1 = es_tokenizer.decode(torch.argmax(logits[0], dim=-1).cpu().tolist())
+		s1 = tokenizer.decode(torch.argmax(logits[0], dim=-1).cpu().tolist())
 		print(f"{s1}\n")
 
 		# inference autoregressive foward
 
-		sos_idx = es_tokenizer.sos_idx
-		eos_idx = es_tokenizer.eos_idx
+		sos_idx = tokenizer.sos_idx
+		eos_idx = tokenizer.eos_idx
 
 		gen_tokens = model.decoder.generate(c, sos_idx=sos_idx, eos_idx=eos_idx)
 
 		print("\nAUTOREGRESSIVE SAMPLE:\n")
-		print(es_tokenizer.decode(gen_tokens.cpu().tolist()))
+		print(tokenizer.decode(gen_tokens.cpu().tolist()))
 
 
 		# Check if first token is correct
 		first_logits = logits[0, 0]  # logits for first token
 		first_pred = torch.argmax(first_logits).item()
 		first_target = y[0, 1].item()  # y[0] is <SOS>, y[1] is first real token
-		print(f"\nFirst token - predicted: {first_pred} ({es_tokenizer.idx_to_token.get(first_pred, '???')}), target: {first_target} ({es_tokenizer.idx_to_token.get(first_target, '???')})")
+		print(f"\nFirst token - predicted: {first_pred} ({tokenizer.idx_to_token.get(first_pred, '???')}), target: {first_target} ({tokenizer.idx_to_token.get(first_target, '???')})")
 		model.train()
