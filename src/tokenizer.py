@@ -15,6 +15,7 @@ import warnings
 
 TARGETS = ["english", "spanish"]
 VOCAB_PATH = "./data/vocabs"
+MAX_SEQ_LEN = 256
 
 class WordTokenizer:
 	def __init__(self, target: str, df: pd.DataFrame = None):
@@ -162,6 +163,8 @@ class BPETokenizer:
 
 		tokenizer.train_from_iterator(sentence_iterator(), trainer=trainer)
 		self.tokenizer = tokenizer
+		self.tokenizer.enable_truncation(max_length=MAX_SEQ_LEN)
+
 
 	def save(self, path: str):
 		self.tokenizer.save(path)
@@ -170,6 +173,7 @@ class BPETokenizer:
 	def load(path: str) -> 'BPETokenizer':
 		t = BPETokenizer()
 		t.tokenizer = Tokenizer.from_file(path)
+		t.tokenizer.enable_truncation(max_length=MAX_SEQ_LEN)
 		return t
 
 	@property
@@ -208,7 +212,7 @@ class BPETokenizer:
 		return self.tokenizer.decode(ids)
 
 	def decode_batch(self, indices: torch.Tensor) -> list[str]:
-		return [self.decode(seq.tolist()) for seq in indices]
+		return self.tokenizer.decode_batch(indices.tolist())
 
 	def __len__(self) -> int:
 		return self.vocab_size_actual
