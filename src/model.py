@@ -9,6 +9,7 @@ class Seq2Seq(nn.Module):
 		super().__init__()
 		self.encoder = Encoder(config.hidden_size, config.emb_dim, config.vocab_size, pad_idx=config.pad_idx)
 		self.decoder = Decoder(config.hidden_size, config.emb_dim, config.vocab_size, max_out_dim=config.max_out_dim)
+		self.config = config
 
 	def forward(self, X: torch.Tensor, Y: torch.Tensor):
 		c = self.encoder(X) 
@@ -19,10 +20,11 @@ class Seq2Seq(nn.Module):
 		return self.decoder.generate(c) if not debug else self.decoder.generate(torch.zeros_like(c))
 
 	@staticmethod
-	def load(fname: str) -> 'Seq2Seq':
+	def load(data) -> 'Seq2Seq':
 		device = "cuda" if torch.cuda.is_available() else "cpu"
-		data = torch.load(fname, weights_only=False)
-		config = data.get("config")
+		config = data.get("config", None)
+		if not config:
+			raise ValueError(f"Cannot load model: Missing config in {data}")
 		state_dict = data.get("model_state_dict")
 		model = Seq2Seq(config)
 		model.load_state_dict(state_dict)
