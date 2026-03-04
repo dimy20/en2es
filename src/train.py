@@ -1,5 +1,6 @@
 import os
 import torch
+from torch.amp import autocast, GradScaler
 import torch.nn.functional as F
 from src.model import Seq2Seq
 from torch.utils.data import DataLoader
@@ -119,6 +120,9 @@ class Trainer:
 	def _train(self, optimizer: Optimizer, start_epoch:int = 0, num_epochs: int = 10):
 		self.model.train()
 		epoch_bar = tqdm(range(start_epoch, num_epochs), desc="Epochs")
+
+		amp_enabled = (self.device == "cuda")
+
 		for epoch in epoch_bar:
 			loss = 0.0
 			train_acc = 0.0
@@ -129,23 +133,24 @@ class Trainer:
 
 				optimizer.zero_grad()
 
-				y_logits = self.model.forward(X, Y)
-				y_log_probs = F.log_softmax(y_logits, dim=-1)
-				B, T, Y_VOCAB = y_log_probs.shape
-				#L = F.nll_loss(y_log_probs.view(B*T, Y_VOCAB), Y.view(B * T)) # SKIP <SOS>
+				with autocast(device_type="cuda", dtype=torch.bfloat16, enabled=amp_enabled):
+					y_logits = self.model.forward(X, Y)
+					y_log_probs = F.log_softmax(y_logits, dim=-1)
+					B, T, Y_VOCAB = y_log_probs.shape
+					#L = F.nll_loss(y_log_probs.view(B*T, Y_VOCAB), Y.view(B * T)) # SKIP <SOS>
 
-				# Batched version of nll_loss call, this function doesnt like batches so we need to adjust the shapes.
-				L = F.nll_loss(y_log_probs.view(B*T, Y_VOCAB), 
-							Y[:, 1:].contiguous().view(-1),
-							#Y[:, 1:].reshape(B * (Y.size(1) - 1)), 
-							ignore_index=self.pad_idx)
+					# Batched version of nll_loss call, this function doesnt like batches so we need to adjust the shapes.
+					L = F.nll_loss(y_log_probs.view(B*T, Y_VOCAB), 
+								Y[:, 1:].contiguous().view(-1),
+								#Y[:, 1:].reshape(B * (Y.size(1) - 1)), 
+								ignore_index=self.pad_idx)
 
 
-				train_acc += accuracy(pad_idx=self.pad_idx, 
-									Y=Y, 
-									y_log_probs=y_log_probs)
+					train_acc += accuracy(pad_idx=self.pad_idx, 
+										Y=Y, 
+										y_log_probs=y_log_probs)
 
-				loss += L.item()
+					loss += L.item()
 
 				#backprop
 				L.backward()
