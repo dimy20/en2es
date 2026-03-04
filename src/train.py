@@ -119,14 +119,14 @@ class Trainer:
 		
 	def _train(self, optimizer: Optimizer, start_epoch:int = 0, num_epochs: int = 10):
 		self.model.train()
-		epoch_bar = tqdm(range(start_epoch, num_epochs), desc="Epochs")
+		epoch_bar = tqdm(range(start_epoch, num_epochs), desc="Epochs", position=0, leave=True)
 
 		amp_enabled = (self.device == "cuda")
 
 		for epoch in epoch_bar:
 			loss = 0.0
 			train_acc = 0.0
-			batch_bar = tqdm(enumerate(self.train_loader), total=len(self.train_loader), desc="Batches", leave=False)
+			batch_bar = tqdm(enumerate(self.train_loader), total=len(self.train_loader), desc="Batches", leave=False, position=1)
 			for batch_idx, (X, Y) in batch_bar:
 				X = X.to(self.device)
 				Y = Y.to(self.device)
