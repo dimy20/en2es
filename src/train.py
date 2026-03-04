@@ -40,6 +40,7 @@ class Trainer:
 		self.device = device
 		self.pad_idx = pad_idx
 		self.log_step = log_step
+		self.checkpoint_file = CHECKPOINT_FILE
 
 		self.eval = ModelEvaluator(
 			model,
@@ -69,7 +70,7 @@ class Trainer:
 			"config": self.model.config,
 			"num_epochs": total_epochs,
 		}
-		torch.save(state_dict, CHECKPOINT_FILE)
+		torch.save(state_dict, self.checkpoint_file)
 
 	@classmethod
 	def from_config(cls, cfg: Config) -> 'Trainer':
